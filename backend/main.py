@@ -8,7 +8,6 @@ import json
 from typing import Optional
 import secrets
 
-try:
     from .database import engine, get_db, Base
 except ImportError:
     from database import engine, get_db, Base
