@@ -10,7 +10,7 @@ import secrets
 
     from .database import engine, get_db, Base
 except ImportError:
-    from database import engine, get_db, Base
+    from .database import engine, get_db, Base
 
 
 Base.metadata.create_all(bind=engine)
