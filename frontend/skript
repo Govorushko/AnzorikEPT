@@ -1,0 +1,276 @@
+// ====================== CONFIG ======================
+const API_URL = "https://твой-бэкенд.com"; // Замени на свой URL после деплоя
+// Для локального теста можно использовать http://localhost:8000
+
+// ====================================================
+
+const tg = window.Telegram?.WebApp;
+if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor("#0a0a12");
+    tg.setBackgroundColor("#0a0a12");
+}
+
+let userData = null;
+let telegramId = null;
+
+// ====================== INIT ======================
+
+async function init() {
+    // Получаем данные пользователя из Telegram
+    const tgUser = tg?.initDataUnsafe?.user;
+
+    if (tgUser) {
+        telegramId = tgUser.id;
+    } else {
+        // Для тестирования вне Telegram
+        telegramId = 123456789;
+        console.log("Тестовый режим (вне Telegram)");
+    }
+
+    // Проверяем реферальный код из start_param
+    let refCode = null;
+    if (tg?.initDataUnsafe?.start_param) {
+        refCode = tg.initDataUnsafe.start_param;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/api/user/init?telegram_id=${telegramId}&username=${tgUser?.username || ""}&first_name=${tgUser?.first_name || ""}&referral_code=${refCode || ""}`, {
+            method: "POST"
+        });
+        userData = await res.json();
+        updateUI();
+        renderUpgrades();
+        document.getElementById("refCode").textContent = userData.referral_code;
+    } catch (e) {
+        console.error("Ошибка инициализации:", e);
+        // Fallback данные для демо
+        userData = {
+            balance: 100,
+            tap_power: 1,
+            energy: 1000,
+            max_energy: 1000,
+            passive_income: 0,
+            referral_code: "DEMO1234",
+            upgrades: []
+        };
+        updateUI();
+    }
+}
+
+// ====================== UI UPDATE ======================
+
+function updateUI() {
+    if (!userData) return;
+
+    document.getElementById("balance").textContent = formatNumber(userData.balance);
+    document.getElementById("tapPower").textContent = formatNumber(userData.tap_power);
+    document.getElementById("energy").textContent = Math.floor(userData.energy);
+    document.getElementById("maxEnergy").textContent = userData.max_energy;
+    document.getElementById("passive").textContent = formatNumber(userData.passive_income);
+
+    const energyPercent = (userData.energy / userData.max_energy) * 100;
+    document.getElementById("energyFill").style.width = `${energyPercent}%`;
+}
+
+function formatNumber(num) {
+    if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + "M";
+    if (num >= 1_000) return (num / 1_000).toFixed(1) + "K";
+    return Math.floor(num).toString();
+}
+
+// ====================== TAP ======================
+
+const tapArea = document.getElementById("tapArea");
+const character = document.getElementById("character");
+const floatingText = document.getElementById("floatingText");
+
+let lastTap = 0;
+
+tapArea.addEventListener("click", async (e) => {
+    if (!userData || userData.energy < 1) {
+        // Можно добавить вибрацию
+        if (tg) tg.HapticFeedback.notificationOccurred("error");
+        return;
+    }
+
+    const now = Date.now();
+    if (now - lastTap < 50) return; // анти-спам
+    lastTap = now;
+
+    // Визуальный эффект
+    character.style.transform = "scale(0.9)";
+    setTimeout(() => character.style.transform = "scale(1)", 80);
+
+    // Плавающий текст
+    showFloatingText(`+${formatNumber(userData.tap_power)}`, e.clientX, e.clientY);
+
+    // Haptic
+    if (tg) tg.HapticFeedback.impactOccurred("light");
+
+    // Отправляем на сервер
+    try {
+        const res = await fetch(`${API_URL}/api/tap?telegram_id=${telegramId}&count=1`, {
+            method: "POST"
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            userData.balance = data.balance;
+            userData.energy = data.energy;
+            updateUI();
+        }
+    } catch (e) {
+        // Оффлайн режим — просто считаем локально
+        userData.balance += userData.tap_power;
+        userData.energy = Math.max(0, userData.energy - 1);
+        updateUI();
+    }
+});
+
+function showFloatingText(text, x, y) {
+    floatingText.textContent = text;
+    floatingText.style.left = `${x - 20}px`;
+    floatingText.style.top = `${y - 40}px`;
+    floatingText.classList.remove("show");
+    void floatingText.offsetWidth; // reflow
+    floatingText.classList.add("show");
+}
+
+// ====================== UPGRADES ======================
+
+function renderUpgrades() {
+    const list = document.getElementById("upgradesList");
+    list.innerHTML = "";
+
+    if (!userData.upgrades || userData.upgrades.length === 0) {
+        list.innerHTML = "<p style='color:#94a3b8;text-align:center;margin-top:40px;'>Прокачки загружаются...</p>";
+        return;
+    }
+
+    userData.upgrades.forEach(up => {
+        const card = document.createElement("div");
+        card.className = "upgrade-card";
+        card.innerHTML = `
+            <div class="upgrade-icon">${up.icon}</div>
+            <div class="upgrade-info">
+                <div class="upgrade-name">${up.name}</div>
+                <div class="upgrade-desc">${up.description}</div>
+                <div class="upgrade-level">Ур. ${up.level} / ${up.max_level}</div>
+            </div>
+            <button class="upgrade-buy" ${userData.balance < up.price || up.level >= up.max_level ? "disabled" : ""} 
+                    onclick="buyUpgrade(${up.id})">
+                ${up.level >= up.max_level ? "MAX" : formatNumber(up.price) + " ANZ"}
+            </button>
+        `;
+        list.appendChild(card);
+    });
+}
+
+async function buyUpgrade(upgradeId) {
+    try {
+        const res = await fetch(`${API_URL}/api/buy_upgrade?telegram_id=${telegramId}&upgrade_id=${upgradeId}`, {
+            method: "POST"
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            userData.balance = data.balance;
+            userData.tap_power = data.tap_power;
+            userData.passive_income = data.passive_income;
+            userData.max_energy = data.max_energy;
+
+            // Обновляем уровень и цену в локальных данных
+            const up = userData.upgrades.find(u => u.id === upgradeId);
+            if (up) {
+                up.level = data.new_level;
+                up.price = data.new_price;
+            }
+
+            updateUI();
+            renderUpgrades();
+
+            if (tg) tg.HapticFeedback.notificationOccurred("success");
+        }
+    } catch (e) {
+        console.error(e);
+        if (tg) tg.HapticFeedback.notificationOccurred("error");
+    }
+}
+
+// ====================== TABS ======================
+
+document.querySelectorAll(".nav-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+
+        btn.classList.add("active");
+        const tabId = btn.dataset.tab;
+        document.getElementById(tabId).classList.add("active");
+
+        if (tabId === "top") loadLeaderboard();
+        if (tabId === "upgrades") renderUpgrades();
+    });
+});
+
+// ====================== REFERRAL ======================
+
+document.getElementById("copyRef").addEventListener("click", () => {
+    const botUsername = "AnzorikEPTBot"; // Замени на username своего бота
+    const link = `https://t.me/${botUsername}?start=${userData.referral_code}`;
+
+    if (tg) {
+        tg.openTelegramLink(link); // или просто копируем
+        navigator.clipboard.writeText(link);
+        tg.showPopup({
+            title: "Ссылка скопирована!",
+            message: "Отправь её друзьям",
+            buttons: [{ type: "ok" }]
+        });
+    } else {
+        navigator.clipboard.writeText(link);
+        alert("Ссылка скопирована:\n" + link);
+    }
+});
+
+// ====================== LEADERBOARD ======================
+
+async function loadLeaderboard() {
+    const container = document.getElementById("leaderboard");
+    container.innerHTML = "<p style='color:#94a3b8;text-align:center;'>Загрузка...</p>";
+
+    try {
+        const res = await fetch(`${API_URL}/api/leaderboard`);
+        const data = await res.json();
+
+        container.innerHTML = "";
+        data.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "lb-item";
+            const posClass = item.position <= 3 ? `top${item.position}` : "";
+            div.innerHTML = `
+                <div class="lb-pos ${posClass}">#${item.position}</div>
+                <div class="lb-name">${item.username}</div>
+                <div class="lb-score">${formatNumber(item.total_earned)}</div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.innerHTML = "<p style='color:#94a3b8;text-align:center;'>Не удалось загрузить</p>";
+    }
+}
+
+// ====================== ENERGY REGEN (локально) ======================
+
+setInterval(() => {
+    if (userData && userData.energy < userData.max_energy) {
+        userData.energy = Math.min(userData.max_energy, userData.energy + 1);
+        updateUI();
+    }
+}, 3000);
+
+// ====================== START ======================
+
+init();
