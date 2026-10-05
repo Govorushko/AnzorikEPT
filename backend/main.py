@@ -8,7 +8,7 @@ import json
 from typing import Optional
 import secrets
 
-from .database import engine, get_db, Base
+from database import engine, get_db, Base
 from . import models
 
 Base.metadata.create_all(bind=engine)
