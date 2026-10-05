@@ -1,0 +1,53 @@
+from sqlalchemy import Column, Integer, String, Float, BigInteger, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from .database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(BigInteger, unique=True, index=True, nullable=False)
+    username = Column(String, nullable=True)
+    first_name = Column(String, nullable=True)
+    balance = Column(Float, default=0.0)
+    total_earned = Column(Float, default=0.0)
+    tap_power = Column(Float, default=1.0)
+    energy = Column(Integer, default=1000)
+    max_energy = Column(Integer, default=1000)
+    last_energy_update = Column(DateTime, default=datetime.utcnow)
+    passive_income = Column(Float, default=0.0)  # per hour
+    last_passive_claim = Column(DateTime, default=datetime.utcnow)
+    referral_code = Column(String, unique=True, index=True)
+    referred_by = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    upgrades = relationship("UserUpgrade", back_populates="user")
+
+
+class Upgrade(Base):
+    __tablename__ = "upgrades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(String)
+    category = Column(String)  # tap, passive, energy
+    base_price = Column(Float, nullable=False)
+    price_multiplier = Column(Float, default=1.35)
+    effect_value = Column(Float, nullable=False)  # how much it adds
+    effect_type = Column(String)  # tap_power, passive_income, max_energy
+    max_level = Column(Integer, default=50)
+    icon = Column(String, default="⚡")
+
+
+class UserUpgrade(Base):
+    __tablename__ = "user_upgrades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    upgrade_id = Column(Integer, ForeignKey("upgrades.id"))
+    level = Column(Integer, default=0)
+
+    user = relationship("User", back_populates="upgrades")
+    upgrade = relationship("Upgrade")
