@@ -1,0 +1,50 @@
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandStart
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.enums import ParseMode
+
+# ====================== НАСТРОЙКИ ======================
+BOT_TOKEN = "ВСТАВЬ_СЮДА_ТОКЕН_БОТА"  # Получи у @BotFather
+WEBAPP_URL = "https://твой-домен.com"  # Ссылка на фронтенд (после деплоя)
+
+# =======================================================
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🦊 Играть в AnzorikEPT",
+            web_app=WebAppInfo(url=WEBAPP_URL)
+        )],
+        [InlineKeyboardButton(
+            text="📢 Наш канал",
+            url="https://t.me/your_channel"
+        )]
+    ])
+
+    await message.answer(
+        f"<b>Добро пожаловать в AnzorikEPT!</b>\n\n"
+        f"Привет, {message.from_user.first_name}! 👋\n\n"
+        f"Тапай по кибер-лису Anzorik, прокачивай его и зарабатывай монеты.\n\n"
+        f"Жми кнопку ниже, чтобы начать:",
+        reply_markup=keyboard,
+        parse_mode=ParseMode.HTML
+    )
+
+
+async def main():
+    logger.info("Bot started")
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
