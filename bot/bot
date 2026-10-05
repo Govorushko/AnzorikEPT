@@ -6,8 +6,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.enums import ParseMode
 
 # ====================== НАСТРОЙКИ ======================
-BOT_TOKEN = "ВСТАВЬ_СЮДА_ТОКЕН_БОТА"  # Получи у @BotFather
-WEBAPP_URL = "https://твой-домен.com"  # Ссылка на фронтенд (после деплоя)
+BOT_TOKEN = "8976019241:AAHzo4PmgNiss_RoUx_a2dgTqfnXWeO9AaY"  # Получи у @BotFather
+WEBAPP_URL = "https://anzorikept-frontend.vercel.app/"  # Ссылка на фронтенд (после деплоя)
 
 # =======================================================
 
